@@ -9,7 +9,7 @@ from astro import sql as aql
 from astro.files import File
 from astro.sql.table import Table, Metadata
 
-from include.stock_market.tasks import _get_stock_prices, _store_prices, _get_formatted_csv, bucket_name
+from include.stock_market.tasks import _get_stock_prices, _store_prices, _get_formatted_csv, _print_any, bucket_name
 
 symbol='AAPL'
 @dag(
@@ -59,21 +59,25 @@ def stock_market():
         python_callable=_get_formatted_csv,
         op_kwargs={'path': '{{ task_instance.xcom_pull(task_ids="store_prices")}}'}
     )
-    # https://astro-sdk-python.readthedocs.io/en/stable/astro/sql/operators/load_file.html
+
+    print_any = PythonOperator(
+        task_id='print_any',
+        python_callable=_print_any,
+        op_kwargs={'path': '{{ task_instance.xcom_pull(task_ids="get_formatted_csv")}}'}
+    )
+
     load_to_dw = aql.load_file(
         task_id='load_to_dw',
-        input_file=File(path=f"s3://{bucket_name}/{{ task_instance.xcom_pull(task_ids='get_formatted_csv')}}", conn_id='minio'),
+        input_file=File(path=f"s3://{bucket_name}/{{ task_instance.xcom_pull(task_ids='get_formatted_csv')}}",
+                        conn_id='minio'),
         output_table=Table(
-            name='stock-market',
+            name='stock_market',
             conn_id='postgres',
             metadata=Metadata(
                 schema='public'
             )
-        ),
+        )
     )
-
-
-
-    is_api_available() >> get_stock_prices >> store_prices >> format_prices >> get_formatted_csv >> load_to_dw
+    is_api_available() >> get_stock_prices >> store_prices >> format_prices >> get_formatted_csv >> print_any >> load_to_dw
 
 stock_market()
