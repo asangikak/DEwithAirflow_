@@ -59,19 +59,21 @@ def stock_market():
         python_callable=_get_formatted_csv,
         op_kwargs={'path': '{{ task_instance.xcom_pull(task_ids="store_prices")}}'}
     )
-
+    # https://astro-sdk-python.readthedocs.io/en/stable/astro/sql/operators/load_file.html
     load_to_dw = aql.load_file(
         task_id='load_to_dw',
-        input_file=File(path=f"s3://{bucket_name}/{{ task_instance.xcom_pull(task_ids='store_prices')}}/formatted_prices",
-                        conn_id='minio'),
+        input_file=File(path=f"s3://{bucket_name}/{{ task_instance.xcom_pull(task_ids='get_formatted_csv')}}", conn_id='minio'),
         output_table=Table(
-            name='stock_market',
+            name='stock-market',
             conn_id='postgres',
             metadata=Metadata(
                 schema='public'
             )
-        )
+        ),
     )
+
+
+
     is_api_available() >> get_stock_prices >> store_prices >> format_prices >> get_formatted_csv >> load_to_dw
 
 stock_market()
