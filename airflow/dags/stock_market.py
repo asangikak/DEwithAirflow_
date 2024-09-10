@@ -66,18 +66,24 @@ def stock_market():
         op_kwargs={'path': '{{ task_instance.xcom_pull(task_ids="get_formatted_csv")}}'}
     )
 
+    # https://min.io/docs/minio/linux/developers/python/API.html
+    # https://astro-sdk-python.readthedocs.io/en/stable/astro/sql/operators/load_file.html
+    # Airflow - How to pass xcom variable into Python function . somehow the string concatenation was not working.
+    # when I hardcoded the csv path it worked. so changed string concatenation in path
+
     load_to_dw = aql.load_file(
         task_id='load_to_dw',
-        input_file=File(path=f"s3://{bucket_name}/{{ task_instance.xcom_pull(task_ids='get_formatted_csv')}}",
-                        conn_id='minio'),
+        input_file=File(path="s3://{}/{}".format(bucket_name, '{{ task_instance.xcom_pull(task_ids="get_formatted_csv")}}'), conn_id='minio'),
         output_table=Table(
             name='stock_market',
             conn_id='postgres',
             metadata=Metadata(
                 schema='public'
             )
-        )
+        ),
+        if_exists="replace"
     )
     is_api_available() >> get_stock_prices >> store_prices >> format_prices >> get_formatted_csv >> print_any >> load_to_dw
+
 
 stock_market()

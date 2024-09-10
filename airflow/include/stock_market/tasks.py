@@ -47,15 +47,19 @@ def _store_prices(stock):
 def _get_formatted_csv(path):
     client = _get_minio_client()
     # prefix_name = f"{path.split('/')}/formatted_prices/"
-    prefix_name = f"{path}/formatted_prices/*"
+    prefix_name = f"{path.split('/')[1]}/formatted_prices/"
     print(f'path: {path} and prefix {prefix_name}')
+
+    # List objects information.
     objects = client.list_objects(bucket_name, prefix=prefix_name, recursive=True)
     for obj in objects:
-        print(f'obj {obj}')
+        print(obj.bucket_name, obj.object_name, obj.last_modified, obj.etag, obj.size, obj.content_type)
         if obj.object_name.endswith('.csv'):
+            print('csv file ')
             return obj.object_name
-        raise AirflowNotFoundException('The csv file does not exisist')
+    raise AirflowNotFoundException('The csv file does not exist')
 
 
+# this function is used to debug the return path of the above function
 def _print_any(path):
     print(f'path s3://{bucket_name}/{path}')
