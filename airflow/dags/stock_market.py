@@ -3,20 +3,30 @@ from airflow.hooks.base import BaseHook
 from airflow.sensors.base import PokeReturnValue
 from airflow.operators.python import PythonOperator
 from airflow.providers.docker.operators.docker import DockerOperator
+from airflow.providers.slack.notifications.slack_notifier import SlackNotifier
 from datetime import datetime
 import requests
 from astro import sql as aql
 from astro.files import File
 from astro.sql.table import Table, Metadata
 
-from include.stock_market.tasks import _get_stock_prices, _store_prices, _get_formatted_csv, _print_any, bucket_name
-
+from include.stock_market.tasks import _get_stock_prices, _store_prices, _get_formatted_csv, bucket_name
 symbol='AAPL'
 @dag(
     start_date=datetime(2023,1,1),
     schedule='@daily',
     catchup=False,
-    tags=['stock_market']
+    tags=['stock_market'],
+    on_success_callback=SlackNotifier(
+        slack_conn_id='slack',
+        text='The DAG stock_market has succeeded',
+        channel='general'
+    ),
+    on_failure_callback=SlackNotifier(
+        slack_conn_id='slack',
+        text='The DAG stock_market has failed',
+        channel='general'
+    )
 )
 def stock_market():
     @task.sensor(poke_interval=30, timeout=300, mode='poke')
@@ -60,11 +70,11 @@ def stock_market():
         op_kwargs={'path': '{{ task_instance.xcom_pull(task_ids="store_prices")}}'}
     )
 
-    print_any = PythonOperator(
-        task_id='print_any',
-        python_callable=_print_any,
-        op_kwargs={'path': '{{ task_instance.xcom_pull(task_ids="get_formatted_csv")}}'}
-    )
+    # print_any = PythonOperator(
+    #     task_id='print_any',
+    #     python_callable=_print_any,
+    #     op_kwargs={'path': '{{ task_instance.xcom_pull(task_ids="get_formatted_csv")}}'}
+    # )
 
     # https://min.io/docs/minio/linux/developers/python/API.html
     # https://astro-sdk-python.readthedocs.io/en/stable/astro/sql/operators/load_file.html
@@ -83,7 +93,7 @@ def stock_market():
         ),
         if_exists="replace"
     )
-    is_api_available() >> get_stock_prices >> store_prices >> format_prices >> get_formatted_csv >> print_any >> load_to_dw
+    is_api_available() >> get_stock_prices >> store_prices >> format_prices >> get_formatted_csv >> load_to_dw
 
 
 stock_market()

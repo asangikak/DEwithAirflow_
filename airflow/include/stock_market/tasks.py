@@ -61,5 +61,5 @@ def _get_formatted_csv(path):
 
 
 # this function is used to debug the return path of the above function
-def _print_any(path):
-    print(f'path s3://{bucket_name}/{path}')
+# def _print_any(path):
+#     print(f'path s3://{bucket_name}/{path}')
